@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Otesha Connectée</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{ --radius:18px; --pri:#22d3ee; }
+html[data-theme="dark"]{ --bg:#0f172a; --card:#111827; --muted:#94a3b8; --txt:#e5e7eb; --ok:#22c55e; --err:#ef4444; --warn:#f59e0b; --canvas:#0b1020; --border:#223; }
+html[data-theme="light"]{ --bg:#f8fafc; --card:#fff; --muted:#475569; --txt:#0f172a; --ok:#16a34a; --err:#dc2626; --warn:#d97706; --canvas:#eef2ff; --border:#d1d5db; }
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:var(--bg);color:var(--txt);transition:background .25s,color .25s}
+.wrap{max-width:1100px;margin:0 auto;padding:18px}
+h1{font-size:1.6rem;margin:10px 0;color:var(--pri);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);border:1px solid var(--border)}
+.metric{font-size:2.2rem;font-weight:700}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.85rem}
+.on{background:var(--ok);color:#fff}.off{background:var(--err);color:#fff}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+label{font-size:.9rem;color:var(--muted)}
+input[type=number], input[type=text], select {width:100%;padding:10px;border-radius:12px;border:1px solid var(--border); background:var(--canvas); color:var(--txt)}
+button{cursor:pointer;border:0;border-radius:12px;padding:10px 12px;background:var(--pri);color:#001019;font-weight:700}
+button.secondary{background:transparent;border:1px solid var(--border);color:var(--txt)}
+.muted{color:var(--muted)}
+.table{width:100%;border-collapse:collapse}
+.table th, .table td{padding:8px;border-bottom:1px dashed var(--border);font-size:.95rem;color:var(--txt);text-align:left}
+.small{font-size:.85rem}
+.icon-btn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:transparent;border:1px solid var(--border);color:var(--txt)}
+.nav-tabs{display:flex;gap:12px;margin-bottom:20px;justify-content:center}
+.nav-tabs button{background:var(--card);color:var(--muted);border-radius:12px 12px 0 0;padding:10px 20px;border:1px solid var(--border);border-bottom:none}
+.nav-tabs button.active{background:var(--pri);color:var(--txt)}
+.thresholds-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.threshold-input{display:flex;gap:8px;align-items:center}
+.threshold-input input{width:50%}
+.controls .row{justify-content:space-between}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.badge-small{padding:2px 8px;border-radius:999px;font-size:.75rem}
+.pdf-btn{background:var(--warn);color:#001019}
+.csv-btn{background:var(--ok);color:#001019}
+.history-actions{display:flex;gap:8px;align-items:center;justify-content:space-between}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>
+    <span class="row">🌿 Otesha Connectée</span>
+    <div class="row">
+      <button id="themeBtn" class="icon-btn" title="Changer le thème" aria-label="Thème">
+        <svg id="iconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <svg id="iconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <circle cx="12" cy="12" r="4"></circle>
+          <line x1="12" y1="2" x2="12" y2="5"></line>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+        </svg>
+      </button>
+    </div>
+  </h1>
+
+  <div class="nav-tabs">
+    <button id="tab-dashboard" class="active">Tableau de bord</button>
+    <button id="tab-history">Historique</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="view-dashboard" class="view-container active">
+    <div class="grid">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div><div class="muted">Température</div><div id="temp" class="metric">-- °C</div></div>
+          <span id="fan-badge" class="badge off">Ventilateur OFF</span>
+        </div>
+        <canvas id="chartTemp" style="width:100%;height:140px"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+            <div>
+            <div class="muted">Résistance Chauffante</div>
+            <div id="heater" class="metric">-- °C</div>
+            </div>
+            <span id="heater-badge" class="badge off">Résistance OFF</span>
+        </div>
+        <canvas id="chartHeater" style="width:100%;height:140px"></canvas>
+      </div>
+
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div><div class="muted">Humidité Air</div><div id="hum" class="metric">-- %</div></div>
+          <span id="air-badge" class="badge off">Humidificateur OFF</span>
+        </div>
+        <canvas id="chartHum" style="width:100%;height:140px"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div><div class="muted">Humidité Sol</div><div id="soil" class="metric">-- %</div></div>
+          <span id="soil-badge" class="badge off">Pompe OFF</span>
+        </div>
+        <canvas id="chartSoil" style="width:100%;height:140px"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div><div class="muted">Lumière (LDR)</div><div id="light" class="metric">-- %</div></div>
+          <span id="lamp-badge" class="badge off">Lampe OFF</span>
+        </div>
+        <canvas id="chartLight" style="width:100%;height:140px"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div><div class="muted">Système</div><div id="enabled" class="metric">--</div></div>
+          <button id="toggle" class="secondary">Basculer</button>
+        </div>
+
+        <div style="margin-top:10px" class="small muted">Règles (min / max) — modifiables</div>
+        <div style="margin-top:8px" class="thresholds-grid">
+          <div class="card small">
+            <div class="muted">Température (°C)</div>
+            <div class="threshold-input"><input id="thTempMin" type="number" step="0.1" placeholder="min"/><input id="thTempMax" type="number" step="0.1" placeholder="max"/></div>
+            <div class="small muted">&lt;min → HEATER ON, &gt;max → FAN ON</div>
+          </div>
+          <div class="card small">
+            <div class="muted">Humidité Air (%)</div>
+            <div class="threshold-input"><input id="thHumMin" type="number" step="0.1" placeholder="min"/><input id="thHumMax" type="number" step="0.1" placeholder="max"/></div>
+            <div class="small muted">&lt;min → HUMIDIFICATEUR ON, &gt;max → FAN ON</div>
+          </div>
+
+          <div class="card small">
+            <div class="muted">Humidité Sol (%)</div>
+            <div class="threshold-input"><input id="thSoilMin" type="number" placeholder="min"/><input id="thSoilMax" type="number" placeholder="max"/></div>
+            <div class="small muted">&lt;min → POMPE ON</div>
+          </div>
+
+          <div class="card small">
+            <div class="muted">Lumière (%)</div>
+            <div class="threshold-input"><input id="thLightMin" type="number" placeholder="min"/><input id="thLightMax" type="number" placeholder="max"/></div>
+            <div class="small muted">&lt;min → LAMPE ON</div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;display:flex;justify-content:flex-end">
+          <button id="save">Enregistrer les seuils</button>
+        </div>
+      </div>
+
+      <div class="card controls">
+        <div class="row" style="justify-content:space-between">
+          <div class="muted">Contrôle actionneurs</div>
+          <button id="pulse2s" class="secondary">Pulse 2s (tout)</button>
+        </div>
+        <div class="group" style="margin-top:8px">
+          <div class="row"><label>Ventilateur</label>
+            <div class="pill"><button data-act="fan" data-mode="AUTO" class="secondary">Auto</button><button data-act="fan" data-mode="ON" class="secondary">ON</button><button data-act="fan" data-mode="OFF" class="secondary">OFF</button></div>
+          </div>
+          <div class="row"><label>Humidificateur</label>
+            <div class="pill"><button data-act="air" data-mode="AUTO" class="secondary">Auto</button><button data-act="air" data-mode="ON" class="secondary">ON</button><button data-act="air" data-mode="OFF" class="secondary">OFF</button></div>
+          </div>
+          <div class="row"><label>Pompe Arrosage</label>
+            <div class="pill"><button data-act="soil" data-mode="AUTO" class="secondary">Auto</button><button data-act="soil" data-mode="ON" class="secondary">ON</button><button data-act="soil" data-mode="OFF" class="secondary">OFF</button></div>
+          </div>
+          <div class="row"><label>Lampe</label>
+            <div class="pill"><button data-act="lamp" data-mode="AUTO" class="secondary">Auto</button><button data-act="lamp" data-mode="ON" class="secondary">ON</button><button data-act="lamp" data-mode="OFF" class="secondary">OFF</button></div>
+          </div>
+          <div class="row"><label>Résistance (Chauffage)</label>
+            <div class="pill"><button data-act="heater" data-mode="AUTO" class="secondary">Auto</button><button data-act="heater" data-mode="ON" class="secondary">ON</button><button data-act="heater" data-mode="OFF" class="secondary">OFF</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="muted">Infos Système</div>
+        <table class="table">
+          <tr><td>IP (STA)</td><td id="ip">--</td></tr>
+          <tr><td>IP (AP)</td><td id="apip">192.168.4.1</td></tr>
+          <tr><td>RSSI</td><td id="rssi">-- dBm</td></tr>
+          <tr><td>Uptime</td><td id="uptime">--</td></tr>
+          <tr><td>Heap libre</td><td id="heap">-- bytes</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY: tableau / pagination / filtres -->
+  <div id="view-history" class="view-container" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="view-title">Historique (24h)</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="downloadPdf" class="pdf-btn">PDF</button>
+          <button id="exportCsv" class="csv-btn">Exporter CSV</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px" class="small muted">Filtrer par plages (laisser vide = pas de filtre)</div>
+      <div class="filter-row" style="margin-top:8px">
+        <div style="flex:1;min-width:150px"><label>Temp min / max (°C)</label><div style="display:flex;gap:6px"><input id="fTempMin" type="number" step="0.1" placeholder="min"><input id="fTempMax" type="number" step="0.1" placeholder="max"></div></div>
+        <div style="flex:1;min-width:150px"><label>HumAir min / max (%)</label><div style="display:flex;gap:6px"><input id="fHumMin" type="number" step="0.1" placeholder="min"><input id="fHumMax" type="number" step="0.1" placeholder="max"></div></div>
+        <div style="flex:1;min-width:150px"><label>Soil min / max (%)</label><div style="display:flex;gap:6px"><input id="fSoilMin" type="number" placeholder="min"><input id="fSoilMax" type="number" placeholder="max"></div></div>
+        <div style="flex:1;min-width:150px"><label>Light min / max (%)</label><div style="display:flex;gap:6px"><input id="fLightMin" type="number" placeholder="min"><input id="fLightMax" type="number" placeholder="max"></div></div>
+        <div style="min-width:120px;display:flex;align-items:end"><button id="applyFilters" class="secondary">Appliquer</button></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="history-actions">
+          <div class="muted small">Affichage</div>
+          <div class="pager">
+            <label class="small muted">Taille page</label>
+            <select id="pageSize"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option></select>
+            <button id="prevPage" class="secondary">Précédent</button>
+            <span id="pageInfo" class="small muted">1 / 1</span>
+            <button id="nextPage" class="secondary">Suivant</button>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;overflow:auto">
+          <table class="table" id="historyTable" aria-live="polite">
+            <thead>
+              <tr>
+                <th>Horodatage</th>
+                <th>Température (°C)</th>
+                <th>Humidité Air (%)</th>
+                <th>Humidité Sol (%)</th>
+                <th>Luminosité (%)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="muted small" style="margin-top:12px">API: <code>/data</code>, <code>POST /api/update</code>, <code>POST /api/actuators</code>, <code>/api/history</code></p>
+</div>
+
+<script>
+/* =========================
+   UI: tableau d'historique + filtres + pagination + CSV export
+   Conserve toutes les autres fonctions (toggle, thresholds etc.)
+   ========================= */
+
+const el = id => document.getElementById(id);
+
+// theme handling (interactive icons + persistence)
+const iconSun = document.getElementById('iconSun'), iconMoon = document.getElementById('iconMoon');
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('theme', t);
+  if(t === 'light'){ iconSun.style.display = 'block'; iconMoon.style.display = 'none'; }
+  else { iconSun.style.display = 'none'; iconMoon.style.display = 'block'; }
+}
+(function initTheme(){
+  const saved = localStorage.getItem('theme');
+  setTheme(saved === 'light' ? 'light' : 'dark');
+})();
+el('themeBtn').onclick = ()=> setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+
+// tabs
+const dashboardTab = el('tab-dashboard'), historyTab = el('tab-history');
+const dashboardView = el('view-dashboard'), historyView = el('view-history');
+function showView(v){
+  if(v === 'dashboard'){
+    dashboardView.style.display = ''; historyView.style.display = 'none';
+    dashboardTab.classList.add('active'); historyTab.classList.remove('active');
+  } else {
+    dashboardView.style.display = 'none'; historyView.style.display = '';
+    dashboardTab.classList.remove('active'); historyTab.classList.add('active');
+    loadHistory(); // load history when switching
+  }
+}
+dashboardTab.onclick = ()=> showView('dashboard');
+historyTab.onclick = ()=> showView('history');
+
+// small line charts for dashboard (keeps previous appearance)
+const chartCanvases = {
+  temp: el('chartTemp'), heater: el('chartHeater'), hum: el('chartHum'), soil: el('chartSoil'), light: el('chartLight')
+};
+const MAX = 120;
+const series = { temp:[], heater:[], hum:[], soil:[], light:[] };
+function drawLine(canvas, arr, min, max){
+  const ctx = canvas.getContext('2d'); const rect = canvas.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+  // pixel-Ratio safe
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--canvas');
+  ctx.fillRect(0,0,w,h);
+  if(!arr.length) return;
+  ctx.beginPath();
+  for(let i=0;i<arr.length;i++){
+    const x = (i/(MAX-1))*w;
+    const y = h - ((arr[i]-min)/(max-min||1))*h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--pri');
+  ctx.stroke();
+}
+function resizeAndDraw(){
+  drawLine(chartCanvases.temp, series.temp, 0, 50);
+  drawLine(chartCanvases.heater, series.heater, 0, 50);
+  drawLine(chartCanvases.hum, series.hum, 0, 100);
+  drawLine(chartCanvases.soil, series.soil, 0, 100);
+  drawLine(chartCanvases.light, series.light, 0, 100);
+}
+window.addEventListener('resize', resizeAndDraw);
+
+// fetchData (dashboard)
+async function fetchData(){
+  try{
+    const r = await fetch('/data'); if(!r.ok) throw new Error('no data');
+    const d = await r.json();
+
+    
+
+
+    // main indicators
+    el('temp').textContent = (typeof d.t === 'number' ? d.t.toFixed(1) : '--') + ' °C';
+    el('heater').textContent = (typeof d.heaterTemp === 'number' ? d.heaterTemp.toFixed(1) : '--') + ' °C';
+    el('hum').textContent = (typeof d.h === 'number' ? d.h.toFixed(1) : '--') + ' %';
+    el('soil').textContent = (d.soil !== undefined ? d.soil : '--') + ' %';
+    el('light').textContent = (d.light !== undefined ? d.light : '--') + ' %';
+    el('enabled').textContent = d.enabled ? 'Activé' : 'Désactivé';
+    // badges
+    el('fan-badge').textContent = d.fan ? 'Ventilateur ON' : 'Ventilateur OFF'; el('fan-badge').className = 'badge ' + (d.fan ? 'on' : 'off');
+    el('heater-badge').textContent = d.heater ? 'Résistance ON' : 'Résistance OFF'; el('heater-badge').className = 'badge ' + (d.heater ? 'on' : 'off');
+    el('air-badge').textContent = d.air ? 'Humidificateur ON' : 'Humidificateur OFF'; el('air-badge').className = 'badge ' + (d.air ? 'on' : 'off');
+    el('soil-badge').textContent = d.soilPump ? 'Pompe ON' : 'Pompe OFF'; el('soil-badge').className = 'badge ' + (d.soilPump ? 'on' : 'off');
+    el('lamp-badge').textContent = d.lamp ? 'Lampe ON' : 'Lampe OFF'; el('lamp-badge').className = 'badge ' + (d.lamp ? 'on' : 'off');
+
+    // thresholds initialize first time
+    if(!fetchData._init){
+      el('thTempMin').value = d.thTempMin ?? 0; el('thTempMax').value = d.thTempMax ?? 100;
+      el('thHumMin').value  = d.thHumMin  ?? 0; el('thHumMax').value  = d.thHumMax  ?? 100;
+      el('thSoilMin').value = d.thSoilMin ?? 0; el('thSoilMax').value = d.thSoilMax ?? 100;
+      el('thLightMin').value= d.thLightMin ?? 0; el('thLightMax').value = d.thLightMax ?? 100;
+      fetchData._init = true;
+    }
+
+    // system info
+    el('ip').textContent = d.ip ?? '--'; el('rssi').textContent = (d.rssi !== undefined ? d.rssi + ' dBm' : '--'); el('heap').textContent = d.heap ?? '--'; el('uptime').textContent = d.uptime ?? '--';
+
+    // update small charts (capped series)
+    if(typeof d.t === 'number'){ series.temp.push(d.t); if(series.temp.length > MAX) series.temp.shift(); }
+    if (typeof d.heaterTemp === 'number') { series.heater.push(d.heaterTemp); if (series.heater.length > MAX) series.heater.shift(); }
+    if(typeof d.h === 'number'){ series.hum.push(d.h); if(series.hum.length > MAX) series.hum.shift(); }
+    if(typeof d.soil === 'number'){ series.soil.push(d.soil); if(series.soil.length > MAX) series.soil.shift(); }
+    if(typeof d.light === 'number'){ series.light.push(d.light); if(series.light.length > MAX) series.light.shift(); }
+    resizeAndDraw();
+  }catch(e){
+    // silent
+  }
+}
+setInterval(fetchData, 1500);
+fetchData();
+
+// helpers
+async function postJson(url, payload){
+  try{ await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) }); }catch(e){ console.error(e); }
+}
+
+// toggle enabled (button + physical handled server-side)
+el('toggle').onclick = async ()=>{
+  await postJson('/api/update', { enabled: 'toggle' });
+  setTimeout(fetchData, 300);
+};
+
+// save thresholds
+el('save').onclick = async ()=>{
+  const payload = { thresholds: {
+    thTempMin: parseFloat(el('thTempMin').value || 0),
+    thTempMax: parseFloat(el('thTempMax').value || 100),
+    thHumMin:  parseFloat(el('thHumMin').value || 0),
+    thHumMax:  parseFloat(el('thHumMax').value || 100),
+    thSoilMin: parseInt(el('thSoilMin').value || 0),
+    thSoilMax: parseInt(el('thSoilMax').value || 100),
+    thLightMin: parseInt(el('thLightMin').value || 0),
+    thLightMax: parseInt(el('thLightMax').value || 100)
+  } };
+  await postJson('/api/update', payload);
+  alert('Seuils enregistrés.');
+  fetchData();
+};
+
+// actuator buttons
+document.querySelectorAll('[data-act]').forEach(btn=>{
+  btn.onclick = async ()=>{
+    const device = btn.getAttribute('data-act'), mode = btn.getAttribute('data-mode');
+    await postJson('/api/actuators', { [device]: mode });
+    setTimeout(fetchData, 200);
+  };
+});
+el('pulse2s').onclick = async ()=>{ await postJson('/api/actuators', { pulseMs:2000 }); setTimeout(fetchData,400); };
+
+/* =========================
+   HISTORIQUE: chargement, filtrage, pagination, CSV export
+   ========================= */
+
+let rawHistory = []; // full server-sent array
+let filteredHistory = []; // after applying filters
+let currentPage = 1;
+function readFilters(){
+  const f = {
+    tmin: parseFloat(el('fTempMin').value) || null, tmax: parseFloat(el('fTempMax').value) || null,
+    hmin: parseFloat(el('fHumMin').value) || null,  hmax: parseFloat(el('fHumMax').value) || null,
+    smin: parseFloat(el('fSoilMin').value) || null, smax: parseFloat(el('fSoilMax').value) || null,
+    lmin: parseFloat(el('fLightMin').value) || null,lmax: parseFloat(el('fLightMax').value) || null
+  };
+  return f;
+}
+function applyFilterToRaw(){
+  const f = readFilters();
+  filteredHistory = rawHistory.filter(item=>{
+    if(f.tmin !== null && item.t < f.tmin) return false;
+    if(f.tmax !== null && item.t > f.tmax) return false;
+    if(f.hmin !== null && item.h < f.hmin) return false;
+    if(f.hmax !== null && item.h > f.hmax) return false;
+    if(f.smin !== null && item.soil < f.smin) return false;
+    if(f.smax !== null && item.soil > f.smax) return false;
+    if(f.lmin !== null && item.light < f.lmin) return false;
+    if(f.lmax !== null && item.light > f.lmax) return false;
+    return true;
+  });
+  currentPage = 1;
+  renderPage();
+}
+
+async function loadHistory(){
+  try{
+    const r = await fetch('/api/history'); if(!r.ok) throw 0;
+    rawHistory = await r.json();
+    // server returns array ordered old->new; keep as is, newest last
+    applyFilterToRaw();
+  }catch(e){
+    rawHistory = []; filteredHistory = []; renderPage();
+  }
+}
+
+// pagination + rendering
+function getPageSize(){ return parseInt(el('pageSize').value) || 25; }
+function renderPage(){
+  const pageSize = getPageSize();
+  const total = filteredHistory.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if(currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * pageSize;
+  const end = Math.min(total, start + pageSize);
+  const tbody = el('historyTable').querySelector('tbody');
+  tbody.innerHTML = '';
+  for(let i=start;i<end;i++){
+    const row = filteredHistory[i];
+    const tr = document.createElement('tr');
+    const date = new Date(row.ts || Date.now());
+    const dateStr = date.toLocaleString();
+    tr.innerHTML = `<td>${dateStr}</td>
+                    <td>${(row.t !== undefined ? Number(row.t).toFixed(1) : '')}</td>
+                    <td>${(row.h !== undefined ? Number(row.h).toFixed(1) : '')}</td>
+                    <td>${(row.soil !== undefined ? row.soil : '')}</td>
+                    <td>${(row.light !== undefined ? row.light : '')}</td>`;
+    tbody.appendChild(tr);
+  }
+  el('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+  // enable/disable prev/next
+  el('prevPage').disabled = currentPage <= 1;
+  el('nextPage').disabled = currentPage >= totalPages;
+}
+
+// page controls
+el('prevPage').onclick = ()=>{ if(currentPage>1){ currentPage--; renderPage(); } };
+el('nextPage').onclick = ()=>{ const totalPages = Math.max(1, Math.ceil(filteredHistory.length / getPageSize())); if(currentPage<totalPages){ currentPage++; renderPage(); } };
+el('pageSize').onchange = ()=>{ currentPage = 1; renderPage(); };
+
+// apply filters button
+el('applyFilters').onclick = ()=>{ applyFilterToRaw(); };
+
+// export CSV (with localized headers)
+function exportCSV(){
+  // CSV headers in French
+  const headers = ['Horodatage','Température (°C)','Humidité Air (%)','Humidité Sol (%)','Luminosité (%)'];
+  const rows = [];
+  // export filtered set (all pages) — if you prefer only current page, adapt start/end
+  for(const r of filteredHistory){
+    const date = new Date(r.ts || Date.now()).toLocaleString();
+    rows.push([date, (r.t !== undefined ? Number(r.t).toFixed(1) : ''), (r.h !== undefined ? Number(r.h).toFixed(1) : ''), (r.soil !== undefined ? r.soil : ''), (r.light !== undefined ? r.light : '')]);
+  }
+  let csv = headers.join(';') + '\n';
+  for(const row of rows){
+    // escape ; or newlines if necessary (here simple)
+    csv += row.map(v => typeof v === 'string' ? '"' + v.replace(/"/g,'""') + '"' : v).join(';') + '\n';
+  }
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const dateStr = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  a.download = `historique_otesha_${dateStr}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+el('exportCsv').onclick = exportCSV;
+
+// PDF export (captures table)
+el('downloadPdf').onclick = async ()=>{
+  // ensure filteredHistory rendered at least first page
+  if(filteredHistory.length === 0) { alert('Aucun enregistrement à exporter'); return; }
+  // temporarily render all rows into an offscreen table for capture at full length
+  const temp = document.createElement('div');
+  temp.style.position = 'fixed'; temp.style.left = '-9999px'; temp.style.top = '0'; temp.style.width = '1200px';
+  const tbl = document.createElement('table'); tbl.className = 'table';
+  const thead = document.createElement('thead'); thead.innerHTML = `<tr><th>Horodatage</th><th>Température (°C)</th><th>Humidité Air (%)</th><th>Humidité Sol (%)</th><th>Luminosité (%)</th></tr>`;
+  tbl.appendChild(thead);
+  const tb = document.createElement('tbody');
+  for(const r of filteredHistory){
+    const date = new Date(r.ts || Date.now()).toLocaleString();
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${date}</td><td>${(r.t !== undefined ? Number(r.t).toFixed(1) : '')}</td><td>${(r.h !== undefined ? Number(r.h).toFixed(1) : '')}</td><td>${(r.soil !== undefined ? r.soil : '')}</td><td>${(r.light !== undefined ? r.light : '')}</td>`;
+    tb.appendChild(tr);
+  }
+  tbl.appendChild(tb); temp.appendChild(tbl); document.body.appendChild(temp);
+  const canvas = await html2canvas(tbl, { scale: 1.5, useCORS: true });
+  const img = canvas.toDataURL('image/jpeg', 1.0);
+  const doc = new window.jspdf.jsPDF('p','mm','a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const imgProps = doc.getImageProperties(img);
+  const imgWidth = pageWidth - 20;
+  const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+  let y = 10;
+  doc.setFontSize(16); doc.text("Historique Otesha", 14, y); y += 8;
+  doc.addImage(img, 'JPEG', 10, y, imgWidth, imgHeight);
+  const fname = `historique_otesha_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.pdf`;
+  doc.save(fname);
+  temp.remove();
+};
+
+// initialize history controls
+document.addEventListener('DOMContentLoaded', ()=> {
+  el('pageSize').value = '25';
+  el('pageInfo').textContent = '0 / 0';
+});
+
+// initial load
+// Note: do not fetch history automatically on dashboard load to save resources; it loads when user opens History tab
+// but we still start dashboard fetch
+resizeAndDraw();
+
+</script>
+</body>
+</html>
